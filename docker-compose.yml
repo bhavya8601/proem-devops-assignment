@@ -1,17 +1,14 @@
-version: '3'
-
 services:
   service-a:
-    build: ./service-a
+    build:
+      context: ./service-a
     ports:
       - "5000:5000"
-    environment:
-      - DB_PASSWORD=admin1234
-      - SECRET_KEY=supersecret123
 
   service-b:
-    build: ./service-b
+    build:
+      context: ./service-b
     depends_on:
       - service-a
     environment:
-      - SERVICE_A_URL=http://localhost:5000
+      SERVICE_A_URL: http://service-a:5000
