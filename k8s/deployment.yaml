@@ -2,6 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: service-a
+  labels:
+    app: service-a
 spec:
   replicas: 1
   selector:
@@ -13,23 +15,62 @@ spec:
         app: service-a
     spec:
       containers:
-      - name: service-a
-        image: myorg/devops-app:latest
-        ports:
-        - containerPort: 5000
-        resources:
-          requests:
-            memory: "64Mi"
-            cpu: "50m"
+        - name: service-a
+          image: bhavya8601/service-a:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5000
+          env:
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: service-a-secrets
+                  key: SECRET_KEY
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: service-a-secrets
+                  key: DB_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "250m"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: service-a
+  labels:
+    app: service-a
 spec:
+  type: ClusterIP
   selector:
     app: service-a
   ports:
-  - port: 5000
-    targetPort: 5000
+    - name: http
+      port: 5000
+      targetPort: http
