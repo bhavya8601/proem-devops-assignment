@@ -7,11 +7,18 @@ services:
     environment:
       SECRET_KEY: ${SECRET_KEY:-}
       DB_PASSWORD: ${DB_PASSWORD:-}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   service-b:
     build:
       context: ./service-b
     depends_on:
-      - service-a
+      service-a:
+        condition: service_healthy
     environment:
       SERVICE_A_URL: ${SERVICE_A_URL:-http://service-a:5000}
