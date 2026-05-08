@@ -1,12 +1,13 @@
-# Service B Dockerfile
-FROM node:18
+FROM node:18-slim
 
 WORKDIR /app
 
-COPY . .
+COPY package.json .
 
 RUN npm install
 
-USER root
+COPY . .
+
+USER node
 
 CMD ["node", "worker.js"]
