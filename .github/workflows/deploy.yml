@@ -44,7 +44,7 @@ jobs:
       - name: Stop services
         if: always()
         run: docker compose down
-        
+
   terraform:
     name: Validate Terraform
     runs-on: ubuntu-latest
@@ -98,3 +98,50 @@ jobs:
           context: ./service-b
           push: true
           tags: ${{ vars.SERVICE_B_IMAGE }}:${{ github.sha }}
+          
+  deploy_k8s:
+    name: Deploy Service A to Kubernetes
+    runs-on: ubuntu-latest
+    needs: publish
+    if: github.event_name == 'workflow_dispatch' && vars.ENABLE_K8S_DEPLOY == 'true'
+
+    env:
+      KUBE_NAMESPACE: ${{ vars.KUBE_NAMESPACE }}
+      SERVICE_A_IMAGE: ${{ vars.SERVICE_A_IMAGE }}:${{ github.sha }}
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Create or update Kubernetes secrets
+        run: |
+          kubectl create secret generic service-a-secrets \
+            --namespace "$KUBE_NAMESPACE" \
+            --from-literal=SECRET_KEY="$SECRET_KEY" \
+            --from-literal=DB_PASSWORD="$DB_PASSWORD" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply -n "$KUBE_NAMESPACE" -f k8s/deployment.yaml
+
+      - name: Update deployment image
+        run: |
+          kubectl set image deployment/service-a \
+            service-a="$SERVICE_A_IMAGE" \
+            -n "$KUBE_NAMESPACE"
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/service-a -n "$KUBE_NAMESPACE"
