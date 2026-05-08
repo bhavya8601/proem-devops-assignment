@@ -3,7 +3,7 @@ import os
 
 app = Flask(__name__)
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "supersecret123")
+SECRET_KEY = os.environ.get("SECRET_KEY")
 
 @app.route('/')
 def home():

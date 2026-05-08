@@ -3,20 +3,74 @@ name: CI/CD Pipeline
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
-  build:
+  validate:
+    name: Validate Docker Compose setup
     runs-on: ubuntu-latest
 
+    env:
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      SERVICE_A_URL: http://service-a:5000
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Build and push
-        run: |
-          docker login -u myuser -p mypassword123
-          docker build -t myorg/devops-app:latest ./service-a
-          docker push myorg/devops-app:latest
+      - name: Validate Docker Compose config
+        run: docker compose config
 
-      - name: Deploy to server
+      - name: Build services
+        run: docker compose build
+
+      - name: Start services
+        run: docker compose up -d
+
+      - name: Check Service A health endpoint
         run: |
-          ssh -o StrictHostKeyChecking=no root@203.0.113.45 "docker pull myorg/devops-app:latest && docker restart service-a"
+          sleep 10
+          curl --fail http://localhost:5000/health
+
+      - name: Check Service B polling Service A
+        run: |
+          sleep 15
+          docker compose logs service-b
+          docker compose logs service-b | grep "Got data from Service A"
+
+      - name: Stop services
+        if: always()
+        run: docker compose down
+
+  publish:
+    name: Build and publish Docker images
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Service A image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./service-a
+          push: true
+          tags: ${{ vars.SERVICE_A_IMAGE }}:${{ github.sha }}
+
+      - name: Build and push Service B image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./service-b
+          push: true
+          tags: ${{ vars.SERVICE_B_IMAGE }}:${{ github.sha }}

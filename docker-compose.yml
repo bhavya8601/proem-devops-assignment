@@ -4,6 +4,9 @@ services:
       context: ./service-a
     ports:
       - "5000:5000"
+    environment:
+      SECRET_KEY: ${SECRET_KEY:-}
+      DB_PASSWORD: ${DB_PASSWORD:-}
 
   service-b:
     build:
@@ -11,4 +14,4 @@ services:
     depends_on:
       - service-a
     environment:
-      SERVICE_A_URL: http://service-a:5000
+      SERVICE_A_URL: ${SERVICE_A_URL:-http://service-a:5000}
